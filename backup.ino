@@ -2,13 +2,13 @@
 #include <TFT_eWidget.h>
 
 // -------------------- PINS --------------------
-#define SOIL1_PIN A2
+#define SOIL1_PIN A0
 #define SOIL2_PIN A1
-#define SOIL3_PIN A0
+#define SOIL3_PIN A2
 
-#define TEMP1_PIN A5
+#define TEMP1_PIN A3
 #define TEMP2_PIN A4
-#define TEMP3_PIN A3
+#define TEMP3_PIN A5
 
 #define PUMP1_PIN 2
 #define PUMP2_PIN 3
@@ -20,8 +20,8 @@
 // -------------------- SETTINGS --------------------
 const float ADC_MAX = 16383.0;
 
-int SOIL_DRY = 3400;
-int SOIL_WET = 1800;
+int SOIL_DRY = 1800;
+int SOIL_WET = 3400;
 
 const float BETA = 3950.0;
 const float R0   = 10000.0;
@@ -40,8 +40,23 @@ bool pump1 = false;
 bool pump2 = false;
 bool pump3 = false;
 
+unsigned long pump1Start = 0;
+unsigned long pump2Start = 0;
+unsigned long pump3Start = 0;
+
+int pump1Duration = 0;
+int pump2Duration = 0;
+int pump3Duration = 0;
+
 unsigned long lastSensorRead = 0;
-const unsigned long SENSOR_INTERVAL = 2000;
+const unsigned long SENSOR_INTERVAL = 5000;
+
+// -------------------- PUMP DURATION --------------------
+int getPumpDuration(int soilPercent) {
+  if (soilPercent < 15) return 8000;
+  if (soilPercent < 25) return 5000;
+  return 2000;
+}
 
 // -------------------- SENSOR FUNCTIONS --------------------
 int readSoil(int pin) {
@@ -53,14 +68,14 @@ int readSoil(int pin) {
 float readTemp(int pin) {
   int raw = analogRead(pin);
   if (raw <= 0) return 0.0;
-  float resistance = R0 * ((ADC_MAX / raw) - 1.0);
+  float resistance = R0 * (ADC_MAX - raw) / raw;
   float tempK = 1.0 / ((1.0 / T0) + (1.0 / BETA) * log(resistance / R0));
   return tempK - 273.15;
 }
 
 // -------------------- PUMP CONTROL --------------------
 void setPump(int pin, bool &state, bool on) {
-  digitalWrite(pin, on ? HIGH : LOW);
+  digitalWrite(pin, on ? LOW : HIGH); // Active LOW relay
   state = on;
 }
 
@@ -72,13 +87,52 @@ void stopAllPumps() {
 
 // -------------------- AUTO WATER --------------------
 void autoWater() {
-  if (soil1 < threshold && !pump1) setPump(PUMP1_PIN, pump1, true);
-  if (soil2 < threshold && !pump2) setPump(PUMP2_PIN, pump2, true);
-  if (soil3 < threshold && !pump3) setPump(PUMP3_PIN, pump3, true);
+  if (soil1 < threshold && !pump1) {
+    pump1Duration = getPumpDuration(soil1);
+    pump1Start = millis();
+    setPump(PUMP1_PIN, pump1, true);
+    Serial.print("Pump 1 ON for ");
+    Serial.print(pump1Duration / 1000);
+    Serial.println(" seconds");
+  }
 
-  if (soil1 >= threshold && pump1) setPump(PUMP1_PIN, pump1, false);
-  if (soil2 >= threshold && pump2) setPump(PUMP2_PIN, pump2, false);
-  if (soil3 >= threshold && pump3) setPump(PUMP3_PIN, pump3, false);
+  if (soil2 < threshold && !pump2) {
+    pump2Duration = getPumpDuration(soil2);
+    pump2Start = millis();
+    setPump(PUMP2_PIN, pump2, true);
+    Serial.print("Pump 2 ON for ");
+    Serial.print(pump2Duration / 1000);
+    Serial.println(" seconds");
+  }
+
+  if (soil3 < threshold && !pump3) {
+    pump3Duration = getPumpDuration(soil3);
+    pump3Start = millis();
+    setPump(PUMP3_PIN, pump3, true);
+    Serial.print("Pump 3 ON for ");
+    Serial.print(pump3Duration / 1000);
+    Serial.println(" seconds");
+  }
+}
+
+// -------------------- PUMP TIMER CHECK --------------------
+void checkPumpTimers() {
+  unsigned long now = millis();
+
+  if (pump1 && now - pump1Start >= (unsigned long)pump1Duration) {
+    setPump(PUMP1_PIN, pump1, false);
+    Serial.println("Pump 1 OFF");
+  }
+
+  if (pump2 && now - pump2Start >= (unsigned long)pump2Duration) {
+    setPump(PUMP2_PIN, pump2, false);
+    Serial.println("Pump 2 OFF");
+  }
+
+  if (pump3 && now - pump3Start >= (unsigned long)pump3Duration) {
+    setPump(PUMP3_PIN, pump3, false);
+    Serial.println("Pump 3 OFF");
+  }
 }
 
 // -------------------- LED STATUS --------------------
@@ -106,6 +160,7 @@ void printToSerial() {
 // -------------------- SETUP --------------------
 void setup() {
   Serial.begin(115200);
+  analogReadResolution(14);
 
   pinMode(PUMP1_PIN, OUTPUT);
   pinMode(PUMP2_PIN, OUTPUT);
@@ -118,11 +173,15 @@ void setup() {
   tft.begin();
   tft.setRotation(0);
   tft.fillScreen(TFT_BLACK);
+
+  Serial.println("Plant Watering System Starting...");
 }
 
 // -------------------- LOOP --------------------
 void loop() {
   unsigned long now = millis();
+
+  checkPumpTimers();
 
   if (now - lastSensorRead >= SENSOR_INTERVAL) {
     lastSensorRead = now;
@@ -135,8 +194,8 @@ void loop() {
     temp2 = readTemp(TEMP2_PIN);
     temp3 = readTemp(TEMP3_PIN);
 
+    printToSerial();
     autoWater();
     updateLED();
-    printToSerial();
-  }            
+  }
 }
