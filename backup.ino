@@ -67,8 +67,16 @@ int readSoil(int pin) {
 
 float readTemp(int pin) {
   int raw = analogRead(pin);
-  if (raw <= 0) return 0.0;
+  Serial.print("Raw temp on pin ");
+  Serial.print(pin);
+  Serial.print(": ");
+  Serial.println(raw);
+  
+  if (raw <= 100) return 0.0;  // Bad reading guard
+  
   float resistance = R0 * (ADC_MAX - raw) / raw;
+  if (resistance <= 0) return 0.0;  // Bad resistance guard
+  
   float tempK = 1.0 / ((1.0 / T0) + (1.0 / BETA) * log(resistance / R0));
   return tempK - 273.15;
 }
@@ -79,7 +87,7 @@ void setPump(int pin, bool &state, bool on) {
   state = on;
 }
 
-void stopAllPumps() {
+void stopAllPumps() {                                                                                              
   setPump(PUMP1_PIN, pump1, false);
   setPump(PUMP2_PIN, pump2, false);
   setPump(PUMP3_PIN, pump3, false);
