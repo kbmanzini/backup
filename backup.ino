@@ -2,13 +2,13 @@
 #include <TFT_eWidget.h>
 
 // -------------------- PINS --------------------
-#define SOIL1_PIN A0
+#define SOIL1_PIN A2
 #define SOIL2_PIN A1
-#define SOIL3_PIN A2
+#define SOIL3_PIN A0
 
-#define TEMP1_PIN A3
+#define TEMP1_PIN A5
 #define TEMP2_PIN A4
-#define TEMP3_PIN A5
+#define TEMP3_PIN A3
 
 #define PUMP1_PIN 2
 #define PUMP2_PIN 3
@@ -61,22 +61,23 @@ int getPumpDuration(int soilPercent) {
 // -------------------- SENSOR FUNCTIONS --------------------
 int readSoil(int pin) {
   int raw = analogRead(pin);
+  Serial.print("Raw soil pin ");
+  Serial.print(pin);
+  Serial.print(": ");
+  Serial.println(raw);
   int percent = map(raw, SOIL_DRY, SOIL_WET, 0, 100);
   return constrain(percent, 0, 100);
 }
 
 float readTemp(int pin) {
   int raw = analogRead(pin);
-  Serial.print("Raw temp on pin ");
+  Serial.print("Raw temp pin ");
   Serial.print(pin);
   Serial.print(": ");
   Serial.println(raw);
-  
-  if (raw <= 100) return 0.0;  // Bad reading guard
-  
+  if (raw <= 100) return 0.0;
   float resistance = R0 * (ADC_MAX - raw) / raw;
-  if (resistance <= 0) return 0.0;  // Bad resistance guard
-  
+  if (resistance <= 0) return 0.0;
   float tempK = 1.0 / ((1.0 / T0) + (1.0 / BETA) * log(resistance / R0));
   return tempK - 273.15;
 }
@@ -87,7 +88,7 @@ void setPump(int pin, bool &state, bool on) {
   state = on;
 }
 
-void stopAllPumps() {                                                                                              
+void stopAllPumps() {
   setPump(PUMP1_PIN, pump1, false);
   setPump(PUMP2_PIN, pump2, false);
   setPump(PUMP3_PIN, pump3, false);
@@ -101,42 +102,37 @@ void autoWater() {
     setPump(PUMP1_PIN, pump1, true);
     Serial.print("Pump 1 ON for ");
     Serial.print(pump1Duration / 1000);
-    Serial.println(" seconds");
+    Serial.println("s");
   }
-
   if (soil2 < threshold && !pump2) {
     pump2Duration = getPumpDuration(soil2);
     pump2Start = millis();
     setPump(PUMP2_PIN, pump2, true);
     Serial.print("Pump 2 ON for ");
     Serial.print(pump2Duration / 1000);
-    Serial.println(" seconds");
+    Serial.println("s");
   }
-
   if (soil3 < threshold && !pump3) {
     pump3Duration = getPumpDuration(soil3);
     pump3Start = millis();
     setPump(PUMP3_PIN, pump3, true);
     Serial.print("Pump 3 ON for ");
     Serial.print(pump3Duration / 1000);
-    Serial.println(" seconds");
+    Serial.println("s");
   }
 }
 
 // -------------------- PUMP TIMER CHECK --------------------
 void checkPumpTimers() {
   unsigned long now = millis();
-
   if (pump1 && now - pump1Start >= (unsigned long)pump1Duration) {
     setPump(PUMP1_PIN, pump1, false);
     Serial.println("Pump 1 OFF");
   }
-
   if (pump2 && now - pump2Start >= (unsigned long)pump2Duration) {
     setPump(PUMP2_PIN, pump2, false);
     Serial.println("Pump 2 OFF");
   }
-
   if (pump3 && now - pump3Start >= (unsigned long)pump3Duration) {
     setPump(PUMP3_PIN, pump3, false);
     Serial.println("Pump 3 OFF");
@@ -148,6 +144,57 @@ void updateLED() {
   bool anyDry = (soil1 < threshold || soil2 < threshold || soil3 < threshold);
   digitalWrite(RED_LED,   anyDry ? HIGH : LOW);
   digitalWrite(GREEN_LED, anyDry ? LOW  : HIGH);
+}
+
+// -------------------- DISPLAY --------------------
+void updateDisplay() {
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextSize(1);
+
+  // Title
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setCursor(10, 5);
+  tft.print("-- Plant Monitor --");
+
+  // Soil
+  tft.setTextColor(TFT_GREEN, TFT_BLACK);
+  tft.setCursor(5, 22);
+  tft.print("SOIL MOISTURE");
+
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setCursor(5, 34);
+  tft.print("P1: "); tft.print(soil1); tft.print("%");
+  if (pump1) { tft.setTextColor(TFT_CYAN, TFT_BLACK); tft.print(" PUMP ON"); }
+
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setCursor(5, 46);
+  tft.print("P2: "); tft.print(soil2); tft.print("%");
+  if (pump2) { tft.setTextColor(TFT_CYAN, TFT_BLACK); tft.print(" PUMP ON"); }
+
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setCursor(5, 58);
+  tft.print("P3: "); tft.print(soil3); tft.print("%");
+  if (pump3) { tft.setTextColor(TFT_CYAN, TFT_BLACK); tft.print(" PUMP ON"); }
+
+  // Temp
+  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+  tft.setCursor(5, 75);
+  tft.print("TEMPERATURE");
+
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setCursor(5, 87);
+  tft.print("T1: "); tft.print(temp1, 1); tft.print(" C");
+  tft.setCursor(5, 99);
+  tft.print("T2: "); tft.print(temp2, 1); tft.print(" C");
+  tft.setCursor(5, 111);
+  tft.print("T3: "); tft.print(temp3, 1); tft.print(" C");
+
+  // Status bar
+  bool anyDry = (soil1 < threshold || soil2 < threshold || soil3 < threshold);
+  tft.fillRect(0, 125, 240, 20, anyDry ? TFT_RED : TFT_DARKGREEN);
+  tft.setTextColor(TFT_WHITE, anyDry ? TFT_RED : TFT_DARKGREEN);
+  tft.setCursor(5, 130);
+  tft.print(anyDry ? " WATERING..." : " ALL GOOD");
 }
 
 // -------------------- SERIAL OUTPUT --------------------
@@ -178,9 +225,16 @@ void setup() {
 
   stopAllPumps();
 
-  tft.begin();
-  tft.setRotation(0);
+  tft.init();
+  tft.setRotation(1);
   tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_GREEN, TFT_BLACK);
+  tft.setTextSize(2);
+  tft.setCursor(20, 50);
+  tft.print("Plant Kit");
+  tft.setCursor(20, 75);
+  tft.print("Starting...");
+  delay(2000);
 
   Serial.println("Plant Watering System Starting...");
 }
@@ -205,5 +259,6 @@ void loop() {
     printToSerial();
     autoWater();
     updateLED();
+    updateDisplay();
   }
 }
