@@ -146,15 +146,15 @@ void updateLED() {
 
 // -------------------- METER SETUP --------------------
 void setupSoilMeters() {
-  soil1Meter.analogMeter(0,   30, 100, "SOIL1", "0", "25", "50", "75", "100");
-  soil2Meter.analogMeter(80,  30, 100, "SOIL2", "0", "25", "50", "75", "100");
-  soil3Meter.analogMeter(160, 30, 100, "SOIL3", "0", "25", "50", "75", "100");
+  soil1Meter.analogMeter(60, 0,   100, "SOIL 1", "0", "25", "50", "75", "100");
+  soil2Meter.analogMeter(60, 80,  100, "SOIL 2", "0", "25", "50", "75", "100");
+  soil3Meter.analogMeter(60, 160, 100, "SOIL 3", "0", "25", "50", "75", "100");
 }
 
 void setupTempMeters() {
-  temp1Meter.analogMeter(0,   30, 50, "TEMP1", "0", "12", "25", "37", "50");
-  temp2Meter.analogMeter(80,  30, 50, "TEMP2", "0", "12", "25", "37", "50");
-  temp3Meter.analogMeter(160, 30, 50, "TEMP3", "0", "12", "25", "37", "50");
+  temp1Meter.analogMeter(60, 0,   50, "TEMP 1", "0", "12", "25", "37", "50");
+  temp2Meter.analogMeter(60, 80,  50, "TEMP 2", "0", "12", "25", "37", "50");
+  temp3Meter.analogMeter(60, 160, 50, "TEMP 3", "0", "12", "25", "37", "50");
 }
 
 // -------------------- PAGE TITLE --------------------
@@ -227,7 +227,7 @@ void setup() {
   stopAllPumps();
 
   tft.init();
-  tft.setRotation(1);
+  tft.setRotation(0);
   tft.fillScreen(TFT_BLACK);
 
   // Boot screen
